@@ -27,7 +27,7 @@
         GoRight,
         GoUp,
         GoDown,
-        //FrillLeft,
+        KillHimSelf,
         DrillRight,
         DrillLeft,
         DoNothing
