@@ -27,7 +27,7 @@
         GoRight,
         GoUp,
         GoDown,
-        FrillLeft,
+        //FrillLeft,
         DrillRight,
         DrillLeft,
         DoNothing

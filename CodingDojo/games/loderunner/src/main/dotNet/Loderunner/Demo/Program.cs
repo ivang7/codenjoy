@@ -29,7 +29,7 @@ namespace Demo
         static void Main(string[] args)
         {
             // creating custom loderunner's Ai client
-            var bot = new MyCustomLoderunnerAI("ApiDotNet");
+            var bot = new MyCustomLoderunnerAI("igubanov@luxoft.com&code=4450324501444815343");
             
             // starting thread with playing loderunner
             (new Thread(bot.Play)).Start();
