@@ -21,6 +21,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Loderunner.Api;
 
 namespace Demo
@@ -56,6 +57,10 @@ namespace Demo
             var golds = gameBoard.GetGoldPositions().FindAll(cell => me.StepBetweePoint(cell) <= areaFindGold);
             var enemyNear = enemies.FindAll(cell => Math.Abs(cell.X - me.X) <= areaFindEnemey && Math.Abs(cell.Y - me.Y) <= areaFindEnemey);
 
+            var x = gameBoard.FindPath(me, golds.FirstOrDefault(), enemies.FirstOrDefault());
+
+
+
             return LoderunnerActionToString(LoderunnerAction.GoLeft);
         }
 
@@ -70,6 +75,193 @@ namespace Demo
 
     public static class ExtensionsForBoard
     {
+        public static List<BoardPoint> GetWalkableBricks(this GameBoard gb)
+        {
+            var blocks = gb.FindAllElements(BoardElement.Brick)
+                .Concat(gb.FindAllElements(BoardElement.DrillPit))
+                .Concat(gb.FindAllElements(BoardElement.UndestroyableWall))
+                .Concat(gb.FindAllElements(BoardElement.PitFill1))
+                .Concat(gb.FindAllElements(BoardElement.PitFill2))
+                .Concat(gb.FindAllElements(BoardElement.PitFill3))
+                .Concat(gb.FindAllElements(BoardElement.EnemyPit))
+                .Concat(gb.FindAllElements(BoardElement.PitFill4)).ToList();
+
+            blocks = blocks.OrderBy(c => c.X).ThenBy(c => c.Y).ToList();
+            BoardPoint last = blocks[0];
+            for (int i = 1; i < blocks.Count; i++)
+            {
+                if (last.X == blocks[i].X && last.Y + 1 == blocks[i].Y)
+                {
+                    last = blocks[i];
+                    blocks.Remove(last);
+                    i--;
+                }
+                else last = blocks[i];
+            }
+
+            var newBlocks = new List<BoardPoint>();
+            foreach (var b in blocks)
+            {
+                if (b.Y - 1 > 0)
+                    newBlocks.Add(new BoardPoint(b.X, b.Y - 1));
+            }
+
+            return newBlocks;
+        }
+
+        public static List<BoardPoint> GetWalkablePipe(this GameBoard gb)
+        {
+            var blocks = gb.FindAllElements(BoardElement.HeroPipeLeft)
+                .Concat(gb.FindAllElements(BoardElement.HeroPipeRight))
+                .Concat(gb.FindAllElements(BoardElement.Pipe))
+                .Concat(gb.FindAllElements(BoardElement.OtherHeroPipeLeft))
+                .Concat(gb.FindAllElements(BoardElement.OtherHeroPipeRight))
+                .Concat(gb.FindAllElements(BoardElement.EnemyPipeLeft))
+                .Concat(gb.FindAllElements(BoardElement.EnemyPipeRight)).ToList();
+
+            return blocks;
+        }
+
+        public static List<BoardPoint> GetWalkableLadder(this GameBoard gb)
+        {
+            var blocks = gb.FindAllElements(BoardElement.Ladder)
+                .Concat(gb.FindAllElements(BoardElement.HeroLadder))
+                .Concat(gb.FindAllElements(BoardElement.EnemyLadder))
+                .Concat(gb.FindAllElements(BoardElement.OtherHeroLadder)).ToList();
+
+            var count = blocks.Count;
+            for (int i = 0; i < count; i++)
+            {
+                if (blocks[i].Y > 1 && !blocks.Any(b => blocks[i].X == b.X && blocks[i].Y - 1 == b.Y))
+                    blocks.Add(new BoardPoint(blocks[i].X, blocks[i].Y - 1));
+            }
+
+            return blocks.OrderBy(b => b.X).ThenBy(b => b.Y).ToList();
+        }
+
+        public static List<BoardPoint> FindPath(this GameBoard gb, BoardPoint start, BoardPoint end, BoardPoint exclude)
+        {
+            var ladders = gb.GetWalkableLadder();
+            var pipes = gb.GetWalkablePipe();
+            var bricks = gb.GetWalkableBricks();
+
+            var path = ladders.ToList();
+            path.AddRange(bricks);
+            path.AddRange(pipes);
+            path = path.Distinct().OrderBy(b => b.X).ThenBy(b => b.Y).ToList();
+
+            if (exclude != null)
+                path.Remove(exclude);
+
+            var result = new List<BoardPoint>() { start };
+
+            var step = 0;
+            var lastDirection = new List<int>() { 1 };
+            BoardPoint nextStep;
+            while (result.LastOrDefault() != end)
+            {
+                var currentStart = result[step];
+                switch (lastDirection[step])
+                {
+                    case 1:
+                        lastDirection[step]++;
+                        nextStep = path.SingleOrDefault(b => b == currentStart.ShiftRight());
+                        if (nextStep != null)
+                        {
+                            result.Add(nextStep);
+                            lastDirection.Add(1);
+                            step++;
+                        }
+                        break;
+                    case 2:
+                        lastDirection[step]++;
+                        nextStep = path.SingleOrDefault(b => b == currentStart.ShiftBottom());
+                        if (nextStep != null)
+                        {
+                            result.Add(nextStep);
+                            lastDirection.Add(1);
+                            step++;
+                        }
+                        else if() /////////!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! STOP !!!!!!!!!!!! если и нет дороги вниз, то проверять - если мы выше цели, можем ли упасть на нее, или на дорогу которая будет выше цели
+                        break;
+                    case 3:
+                        lastDirection[step]++;
+                        nextStep = path.SingleOrDefault(b => b == currentStart.ShiftLeft());
+                        if (nextStep != null)
+                        {
+                            result.Add(nextStep);
+                            lastDirection.Add(1);
+                            step++;
+                        }
+                        break;
+                    case 4:
+                        lastDirection[step]++;
+                        nextStep = path.SingleOrDefault(b => b == currentStart.ShiftTop());
+                        if (nextStep != null)
+                        {
+                            result.Add(nextStep);
+                            lastDirection.Add(1);
+                            step++;
+                        }
+                        break;
+                    default:
+                        result.RemoveAt(step);
+                        lastDirection.RemoveAt(step);
+                        if (step == 0)
+                            return null;
+                        else step--;
+                        break;
+                }
+            }
+
+
+            return null;
+        }
+
+
+
+
+        public static bool CanBeDrill(this BoardElement cell)
+        {
+            switch (cell)
+            {
+                case BoardElement.Brick:
+                case BoardElement.DrillPit:
+                case BoardElement.PitFill1:
+                case BoardElement.PitFill2:
+                case BoardElement.PitFill3:
+                case BoardElement.PitFill4:
+                    return true;
+
+                default: return false;
+            }
+        }
+
+        public static bool CanBeMovable(this BoardElement cell)
+        {
+            switch (cell)
+            {
+                //case BoardElement.PitFill1:
+                case BoardElement.PitFill2:
+                case BoardElement.PitFill3:
+                case BoardElement.PitFill4:
+                case BoardElement.None:
+                case BoardElement.Gold:
+                case BoardElement.Ladder:
+                case BoardElement.Pipe:
+                    return true;
+                default: return false;
+            }
+        }
+
+        public static bool CanBeFall(this BoardElement cell)
+        {
+            if (cell == BoardElement.Ladder || cell == BoardElement.Pipe)
+                return false;
+
+            return CanBeMovable(cell);
+        }
+
         /// <summary></summary>
         /// <returns>1 - if can go and stay, -1 - if can go and fall, 0 - not go, 2 - can be drill</returns>
         public static int CanGo(this BoardPoint position, GameBoard gb, LoderunnerAction direction)
@@ -147,80 +339,6 @@ namespace Demo
         {
             return AbsDefference(start.X, end.X) + AbsDefference(start.Y, end.Y);
         }
-
-
-        public static List<BoardPoint> FindPath(this GameBoard gb, BoardPoint start, BoardPoint end)
-        {
-            //step--;
-            //if (step == 0)
-            //    return null;
-
-            var path = new List<BoardPoint>();
-            bool verticalDirectionDown = start.Y - end.Y > 0;
-            bool horizontalDirectionRigth = start.X - end.X < 0;
-            List<BoardPoint> pathVertical;
-            List<BoardPoint> pathHorizontal;
-
-
-            if (verticalDirectionDown)
-            {
-                var canDown = start.CanGo(gb, LoderunnerAction.GoDown);
-
-                if (canDown == 1 || canDown == -1)
-                {
-                    pathVertical = FindPath(gb, start.ShiftBottom(), end);
-                    if (pathVertical != null)
-                        return pathVertical;
-                }
-
-
-            }
-
-
-            return null;
-        }
-
-        public static bool CanBeDrill(this BoardElement cell)
-        {
-            switch (cell)
-            {
-                case BoardElement.Brick:
-                case BoardElement.DrillPit:
-                case BoardElement.PitFill1:
-                case BoardElement.PitFill2:
-                case BoardElement.PitFill3:
-                case BoardElement.PitFill4:
-                    return true;
-
-                default: return false;
-            }
-        }
-
-        public static bool CanBeMovable(this BoardElement cell)
-        {
-            switch (cell)
-            {
-                //case BoardElement.PitFill1:
-                case BoardElement.PitFill2:
-                case BoardElement.PitFill3:
-                case BoardElement.PitFill4:
-                case BoardElement.None:
-                case BoardElement.Gold:
-                case BoardElement.Ladder:
-                case BoardElement.Pipe:
-                    return true;
-                default: return false;
-            }
-        }
-
-        public static bool CanBeFall(this BoardElement cell)
-        {
-            if (cell == BoardElement.Ladder || cell == BoardElement.Pipe)
-                return false;
-
-            return CanBeMovable(cell);
-        }
-
     }
 
 }
